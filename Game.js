@@ -56,37 +56,51 @@ var Bubble = function(x, y, color) {
   };
 
   self.clicked = function(x, y) {
-    var dist = Math.sqrt(
-      ((self.x - x) * (self.x - x)) + ((self.y - y) * (self.y - y))
-    );
+    var dist = norm(self.x - x, self.y - y);
 
     return dist <= self.radius;
   };
+
+  self.setSpeed = function(vx, vy) {
+    self.vx = vx;
+    self.vy = vy;
+  };
+
+  self.stop = function() {
+    self.setSpeed(0, 0);
+  };
 };
+
+function norm(a, b) {
+  return Math.sqrt((a * a) + (b * b));
+}
+
+function scale() {
+  // scale canvas
+  ctx.canvas.width  = window.innerWidth;
+  ctx.canvas.height = window.innerHeight;
+
+  // scaling everything based on canvas size
+  CENTER_X = window.innerWidth / 2;
+  CENTER_Y = window.innerHeight / 2;
+  GON_CHORD = Math.min(CENTER_X, CENTER_Y) / CHORD_SCALING;
+  RADIUS = GON_CHORD / RADIUS_SCALING;
+}
 
 function init() {
   var canvas = document.getElementById('board');
   if (canvas.getContext) {
     ctx = canvas.getContext('2d');
 
-    // scale canvas
-    ctx.canvas.width  = window.innerWidth;
-    ctx.canvas.height = window.innerHeight;
+    scale();
 
-    // scaling everything based on canvas size
-    CENTER_X = window.innerWidth / 2;
-    CENTER_Y = window.innerHeight / 2;
-    GON_CHORD = Math.min(CENTER_X, CENTER_Y) / CHORD_SCALING;
-    RADIUS = GON_CHORD / RADIUS_SCALING;
-
-    renderGon();
     setupCannons('blue');
 
     var b = new Bubble(CENTER_X, CENTER_Y, 'red');
-    b.render();
     bubbles.push(b);
 
     canvas.addEventListener('click', onClick);
+    render();
   }
 }
 
@@ -99,13 +113,14 @@ function onClick(e) {
     return b.clicked(e.x, e.y);
   });
 
-  if (s) { //
+  if (s) { // a cannon was clicked on
     unselect();
     s.setSelected(true);
     selected = s;
     render();
+  } else if (selected) { // empty space was clicked
+
   }
-  // raf = requestAnimationFrame(animateBubbles);
 }
 
 function unselect() {
@@ -144,8 +159,6 @@ function setupCannons(color) {
     );
     b.setSelectable(true);
 
-    b.render();
-
     cannons.push(b);
   }
 }
@@ -169,4 +182,6 @@ function render() {
   bubbles.forEach(function(b) {
     b.render();
   });
+
+  // raf = requestAnimationFrame(animateBubbles);
 }
