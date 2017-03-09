@@ -6,11 +6,11 @@ var SIDES = 6;
 var RADIUS = 10;
 var RADIUS_SCALING = 23;
 var MARGIN = 5;
-var SPEED = 20;
+var SPEED = 15;
 var SELECTED_COLOR = 'white';
 
-var ctx;
-var raf;
+var ctx = null;
+var raf = null;
 
 var input = true;
 var selected = null;
@@ -42,6 +42,8 @@ var Bubble = function(x, y, color) {
   };
 
   self.render = function() {
+    self.updatePosition();
+
     ctx.beginPath();
     ctx.arc(self.x, self.y, self.radius, 0, Math.PI * 2, true);
     ctx.fillStyle = self.color;
@@ -68,6 +70,16 @@ var Bubble = function(x, y, color) {
 
   self.stop = function() {
     self.setSpeed(0, 0);
+  };
+
+  self.setDirection = function(x, y) {
+    var n = norm(x - self.x, y - self.y);
+    self.setSpeed((x - self.x) / n * SPEED, (y - self.y) / n * SPEED);
+  };
+
+  self.updatePosition = function() {
+    self.x += self.vx;
+    self.y += self.vy;
   };
 };
 
@@ -119,7 +131,9 @@ function onClick(e) {
     selected = s;
     render();
   } else if (selected) { // empty space was clicked
-
+    input = false;
+    selected.setDirection(e.x, e.y);
+    render();
   }
 }
 
@@ -172,7 +186,7 @@ function animateBubbles() {
 }
 
 function render() {
-  ctx.clearRect(0, 0, ctx.canvas.height, ctx.canvas.width);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   renderGon();
 
   cannons.forEach(function(b) {
@@ -183,5 +197,11 @@ function render() {
     b.render();
   });
 
-  // raf = requestAnimationFrame(animateBubbles);
+  if (!input) {
+    raf = requestAnimationFrame(render);
+  } else if (raf) {
+    cancelAnimationFrame(raf);
+    raf = null;
+    input = true;
+  }
 }
