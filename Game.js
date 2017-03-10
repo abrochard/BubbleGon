@@ -15,6 +15,9 @@ var raf = null;
 var input = true;
 var selected = null;
 
+var vertices = [];
+var edges = [];
+
 var bubbles = [];
 var cannons = [];
 
@@ -106,6 +109,7 @@ function init() {
 
     scale();
 
+    registerVertices();
     setupCannons('blue');
 
     var b = new Bubble(CENTER_X, CENTER_Y, 'red');
@@ -143,22 +147,27 @@ function unselect() {
   }
 }
 
-function renderGon() {
-  ctx.beginPath();
-  ctx.moveTo(
-    CENTER_X +  GON_CHORD * Math.cos(0),
-    CENTER_Y +  GON_CHORD *  Math.sin(0)
-  );
-
-  for (var i = 1; i <= SIDES; i += 1) {
-    ctx.lineTo(
+function registerVertices() {
+  for (var i = 0; i < SIDES; i++) {
+    vertices.push([
       CENTER_X + GON_CHORD * Math.cos(i * 2 * Math.PI / SIDES),
       CENTER_Y + GON_CHORD * Math.sin(i * 2 * Math.PI / SIDES)
-    );
+    ]);
+  }
+}
+
+function renderGon() {
+  ctx.beginPath();
+  ctx.moveTo(vertices[0][0], vertices[0][1]);
+
+  for (var i = 1; i < vertices.length; i += 1) {
+    ctx.lineTo(vertices[i][0], vertices[i][1]);
   }
 
+  ctx.lineTo(vertices[0][0], vertices[0][1]);
+
   ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 3;
   ctx.stroke();
 }
 
@@ -204,4 +213,8 @@ function render() {
     raf = null;
     input = true;
   }
+}
+
+function detectCollision() {
+
 }
