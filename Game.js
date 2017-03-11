@@ -1,3 +1,4 @@
+// CONSTANTS
 var GON_CHORD = 100;
 var CHORD_SCALING = 1.2;
 var CENTER_X = 250;
@@ -9,18 +10,21 @@ var MARGIN = 5;
 var SPEED = 15;
 var SELECTED_COLOR = 'white';
 
+// GLOBAL VAR
 var ctx = null;
 var raf = null;
 
 var input = true;
 var selected = null;
 
-var vertices = [];
-var edges = [];
+var intersect = null;
+var bounce = null;
 
+var polygon = null;
 var bubbles = [];
 var cannons = [];
 
+// CLASSES
 var Bubble = function(x, y, color) {
   var self = this;
 
@@ -84,12 +88,197 @@ var Bubble = function(x, y, color) {
     self.x += self.vx;
     self.y += self.vy;
   };
+
+  self.bounce = function(vx, vy) {
+    var v = reflectVector(
+      {
+        x: self.vx,
+        y: self.vy
+      },
+      {
+        x: vx,
+        y: vy
+      }
+    );
+
+    self.setDirection(v.x, v.y);
+  };
 };
 
+var Polygon = function(center, vertices, color, width) {
+  var self = this;
+
+  self.center = center;
+  self.vertices = vertices;
+  self.sides = vertices.length;
+  self.color = color;
+  self.width = width;
+  self.coeffs = {};
+  self.radius = 0;
+
+  self.computeRadius = function() {
+    var v = self.vertices[0];
+    self.radius = dist(v, self.center);
+  };
+
+  self.computeBoundaryEquations = function() {
+    self.coeffs = {};
+
+    var next = 0;
+    var p1 = null;
+    var p2 = null;
+    var coeff = null;
+    var index = '';
+
+    for (var i = 0; i < self.vertices.length; i++) {
+      next = (i + 1) % self.vertices.length;
+      p1 = self.vertices[i];
+      p2 = self.vertices[next];
+      coeff = lineCoefficients(p1.x, p1.y, p2.x, p2.y);
+
+      index = JSON.stringify(p1) + '-' + JSON.stringify(p2);
+      self.coeffs[index] = coeff;
+    }
+  };
+
+  self.render = function() {
+    ctx.beginPath();
+    ctx.moveTo(self.vertices[0].x, self.vertices[0].y);
+
+    for (var i = 1; i < self.vertices.length; i += 1) {
+      ctx.lineTo(self.vertices[i].x, self.vertices[i].y);
+    }
+
+    ctx.lineTo(self.vertices[0].x, self.vertices[0].y);
+
+    ctx.strokeStyle = self.color;
+    ctx.lineWidth = self.width;
+    ctx.stroke();
+  };
+
+  self.collisionPoint = function(x, y, vx, vy) {
+    var coeff = lineCoefficients(x, y, x + vx, y + vy);
+
+    var points = [];
+    var intersect = false;
+    var current = null;
+    var next = null;
+
+    for (var key in self.coeffs) {
+      intersect = intersectionPoint(
+        coeff.a,
+        coeff.b,
+        self.coeffs[key].a,
+        self.coeffs[key].b
+      );
+
+      if (intersect) {
+        // is aligned
+        if (dist(center, intersect) <= self.radius) {
+          // is inside the circle
+          current = {x: x, y: y};
+          next = {x: x + vx, y: y + vy};
+          if (lieBetween(next, current, intersect)) {
+            // will intersect
+
+            var bounce = {
+              x: self.coeffs[key].a,
+              y: self.coeffs[key].b
+            };
+            return {
+              intersect: intersect,
+              bounce: bounce
+            };
+          }
+        }
+      }
+    }
+
+    return {
+      intersect: false,
+      bounce: false
+    };
+  };
+
+  self.computeRadius();
+  self.computeBoundaryEquations();
+};
+
+// MATH LIB
 function norm(a, b) {
   return Math.sqrt((a * a) + (b * b));
 }
 
+function dist(a, b) {
+  return norm(a.x - b.x, a.y - b.y);
+}
+
+function lineCoefficients(x1, y1, x2, y2) {
+  var slope = 0;
+  if ((x2 - x1) !== 0) {
+    slope = (y2 - y1) / (x2 - x1);
+  }
+
+  var intercept = y2 - (slope * x2);
+
+  return {
+    a: slope,
+    b: intercept
+  };
+}
+
+function intersectionPoint(a1, b1, a2, b2) {
+  if ((a1 - a2) === 0) {
+    return false;
+  }
+
+  var x = (b2 - b1) / (a1 - a2);
+  var y = ((a1 * b2) - (a2 * b1)) / (a1 - a2);
+
+  return {
+    x: x,
+    y: y
+  };
+}
+
+function dot(v, w) {
+  var d = (v.x * w.x) + (v.y * w.y);
+  return d;
+}
+
+function lieBetween(t, p1, p2) {
+  var v = {
+    x: t.x - p1.x,
+    y: t.y - p1.y
+  };
+  var w = {
+    x: t.x - p2.x,
+    y: t.y - p2.y
+  };
+
+  var d = dot(v, w);
+  return d < 0;
+}
+
+function normalize(v) {
+  var n = norm(v.x, v.y);
+  return {
+    x: v.x / n,
+    y: v.y / n
+  };
+}
+
+function reflectVector(v, d) {
+  var n = normalize(d);
+  var f = 2 * dot(v, n);
+
+  return {
+    x: v.x - (f * n.x),
+    y: v.y - (f * n.y)
+  };
+}
+
+// CORE
 function scale() {
   // scale canvas
   ctx.canvas.width  = window.innerWidth;
@@ -108,6 +297,12 @@ function init() {
     ctx = canvas.getContext('2d');
 
     scale();
+
+    var center = {
+      x: CENTER_X,
+      y: CENTER_Y
+    };
+    polygon = new Polygon(center, registerVertices(), 'black', 3);
 
     registerVertices();
     setupCannons('blue');
@@ -137,6 +332,20 @@ function onClick(e) {
   } else if (selected) { // empty space was clicked
     input = false;
     selected.setDirection(e.x, e.y);
+
+    var coll = polygon.collisionPoint(
+      selected.x,
+      selected.y,
+      selected.vx,
+      selected.vy
+    );
+
+    intersect = coll.intersect;
+    bounce = coll.bounce;
+
+    bubbles.push(new Bubble(intersect.x, intersect.y, 'green'));
+    bubbles.push(new Bubble(bounce.x, bounce.y, 'green'));
+
     render();
   }
 }
@@ -148,27 +357,16 @@ function unselect() {
 }
 
 function registerVertices() {
+  var vertices = [];
+
   for (var i = 0; i < SIDES; i++) {
-    vertices.push([
-      CENTER_X + GON_CHORD * Math.cos(i * 2 * Math.PI / SIDES),
-      CENTER_Y + GON_CHORD * Math.sin(i * 2 * Math.PI / SIDES)
-    ]);
-  }
-}
-
-function renderGon() {
-  ctx.beginPath();
-  ctx.moveTo(vertices[0][0], vertices[0][1]);
-
-  for (var i = 1; i < vertices.length; i += 1) {
-    ctx.lineTo(vertices[i][0], vertices[i][1]);
+    vertices.push({
+      x: CENTER_X + GON_CHORD * Math.cos(i * 2 * Math.PI / SIDES),
+      y: CENTER_Y + GON_CHORD * Math.sin(i * 2 * Math.PI / SIDES)
+    });
   }
 
-  ctx.lineTo(vertices[0][0], vertices[0][1]);
-
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  return vertices;
 }
 
 function setupCannons(color) {
@@ -186,17 +384,30 @@ function setupCannons(color) {
   }
 }
 
-function animateBubbles() {
-  for (var i = 0; i < bubbles.length; i++) {
-    bubbles.render();
-  }
-
-  raf = requestAnimationFrame(animateBubbles);
+function clearCanvas() {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
 function render() {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  renderGon();
+  if (selected && !input) {
+    if (dist(selected, intersect) <= selected.radius) {
+      selected.bounce(bounce.x, bounce.y);
+
+      var coll = polygon.collisionPoint(
+        selected.x,
+        selected.y,
+        selected.vx,
+        selected.vy
+      );
+
+      intersect = coll.intersect;
+      bounce = coll.bounce;
+    }
+  }
+
+  clearCanvas();
+
+  polygon.render();
 
   cannons.forEach(function(b) {
     b.render();
