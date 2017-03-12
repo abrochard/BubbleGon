@@ -19,7 +19,6 @@ var input = true;
 var selected = null;
 
 var frame = 0;
-var intersectFrame = -1;
 var intersect = null;
 var normal = null;
 
@@ -221,14 +220,12 @@ function detectCollision() {
   normal = coll.normal;
 
   if (normal) {
-    var b = new Vector(normal.x - intersect.x, normal.y - intersect.y);
-    if (!lieBetween(b, intersect, center)) {
+    var b = new Vector(center.x - intersect.x, center.y - intersect.y);
+    if (b.dot(normal) < 0) {
       normal.flip();
     }
   }
 
   bubbles.push(new Bubble(intersect.x, intersect.y, 'green', RADIUS, SPEED));
   console.log(normal);
-
-  intersectFrame = frame + selected.collisionFrame(intersect);
 }

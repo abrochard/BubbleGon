@@ -33,6 +33,18 @@ var Vector = function(x, y) {
     var n = self.norm();
     self.x /= n;
     self.y /= n;
+
+    return self;
+  };
+
+  self.normal = function() {
+    var x = 1;
+    var y = -self.x / self.y;
+
+    self.x = x;
+    self.y = y;
+
+    return self;
   };
 
   self.rotate = function(angle) {
@@ -45,10 +57,12 @@ var Vector = function(x, y) {
 
     self.x = x;
     self.y = y;
+
+    return self;
   };
 
   self.reflect = function(v) {
-    v.normalize();
+    v.normal().normalize();
     var f = 2 * self.dot(v);
 
     var x = self.x - (f * v.x);
@@ -56,9 +70,11 @@ var Vector = function(x, y) {
 
     self.x = x;
     self.y = y;
+
+    return self;
   };
 
   self.flip = function() {
-    self.rotate(Math.PI);
+    return self.rotate(Math.PI);
   };
 };

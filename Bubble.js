@@ -66,8 +66,7 @@ var Bubble = function(x, y, color, radius, speed) {
   };
 
   self.bounce = function(n) {
-    var v = self.next();
-    v.reflect(n);
+    var v = self.velocity().reflect(n);
 
     self.setDirection(v);
   };
@@ -76,22 +75,14 @@ var Bubble = function(x, y, color, radius, speed) {
     return new Vector(self.x, self.y);
   };
 
+  self.velocity = function() {
+    return new Vector(self.vx, self.vy);
+  };
+
   self.next = function() {
     return new Vector(
       self.x + self.vx,
       self.y + self.vy
     );
-  };
-
-  self.collisionFrame = function(p) {
-    var d = dist(p, self.vertex());
-    var vel = {
-      x: self.vx,
-      y: self.vy
-    };
-    var v = dist(self.vertex(), vel);
-
-    var x = d / v;
-    return Math.floor(x);
   };
 };
