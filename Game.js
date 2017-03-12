@@ -13,6 +13,7 @@ var SELECTED_COLOR = 'white';
 // GLOBAL VAR
 var ctx = null;
 var raf = null;
+var center = null;
 
 var input = true;
 var selected = null;
@@ -20,205 +21,11 @@ var selected = null;
 var frame = 0;
 var intersectFrame = -1;
 var intersect = null;
-var bounce = null;
+var normal = null;
 
 var polygon = null;
 var bubbles = [];
 var cannons = [];
-
-// CLASSES
-var Bubble = function(x, y, color) {
-  var self = this;
-
-  self.x = x;
-  self.y = y;
-  self.color = color;
-
-  self.vx = 0;
-  self.vy = 0;
-
-  self.selectable = false;
-  self.selected = false;
-
-  self.radius = RADIUS;
-
-  self.setSelectable = function(s) {
-    self.selectable = s;
-  };
-
-  self.setSelected = function(s) {
-    self.selected = s;
-  };
-
-  self.render = function() {
-    self.updatePosition();
-
-    ctx.beginPath();
-    ctx.arc(self.x, self.y, self.radius, 0, Math.PI * 2, true);
-    ctx.fillStyle = self.color;
-    ctx.fill();
-
-    if (self.selected) {
-      ctx.beginPath();
-      ctx.arc(self.x, self.y, self.radius / 3, 0, Math.PI * 2, true);
-      ctx.fillStyle = SELECTED_COLOR;
-      ctx.fill();
-    }
-  };
-
-  self.clicked = function(x, y) {
-    var dist = norm(self.x - x, self.y - y);
-
-    return dist <= self.radius;
-  };
-
-  self.setSpeed = function(vx, vy) {
-    self.vx = vx;
-    self.vy = vy;
-  };
-
-  self.stop = function() {
-    self.setSpeed(0, 0);
-  };
-
-  self.setDirection = function(x, y) {
-    var n = norm(x - self.x, y - self.y);
-    self.setSpeed((x - self.x) / n * SPEED, (y - self.y) / n * SPEED);
-  };
-
-  self.updatePosition = function() {
-    self.x += self.vx;
-    self.y += self.vy;
-  };
-
-  self.bounce = function(vx, vy) {
-    var v = reflectVector(
-      {
-        x: self.vx,
-        y: self.vy
-      },
-      {
-        x: vx,
-        y: vy
-      }
-    );
-
-    self.setDirection(v.x, v.y);
-  };
-
-  self.vertex = function() {
-    return {
-      x: self.x,
-      y: self.y
-    };
-  };
-
-  self.collisionFrame = function(p) {
-    var d = dist(p, self.vertex());
-    var vel = {
-      x: self.vx,
-      y: self.vy
-    };
-    var v = dist(self.vertex(), vel);
-
-    var x = d / v;
-    return Math.floor(x);
-  };
-};
-
-var Polygon = function(vertices, color, width) {
-  var self = this;
-
-  self.vertices = vertices;
-  self.sides = vertices.length;
-  self.color = color;
-  self.width = width;
-  self.segments = [];
-  self.coeffs = [];
-
-  self.computeBoundaryEquations = function() {
-    self.coeffs = [];
-
-    var next = 0;
-    var p1 = null;
-    var p2 = null;
-    var coeff = null;
-    var index = '';
-
-    for (var i = 0; i < self.vertices.length; i++) {
-      next = (i + 1) % self.vertices.length;
-      p1 = self.vertices[i];
-      p2 = self.vertices[next];
-      coeff = lineCoefficients(p1.x, p1.y, p2.x, p2.y);
-
-      self.segments.push({
-        p1: p1,
-        p2: p2
-      });
-      self.coeffs.push(coeff);
-    }
-  };
-
-  self.render = function() {
-    ctx.beginPath();
-    ctx.moveTo(self.vertices[0].x, self.vertices[0].y);
-
-    for (var i = 1; i < self.vertices.length; i += 1) {
-      ctx.lineTo(self.vertices[i].x, self.vertices[i].y);
-    }
-
-    ctx.lineTo(self.vertices[0].x, self.vertices[0].y);
-
-    ctx.strokeStyle = self.color;
-    ctx.lineWidth = self.width;
-    ctx.stroke();
-  };
-
-  self.collisionPoint = function(x, y, vx, vy) {
-    var coeff = lineCoefficients(x, y, x + vx, y + vy);
-
-    var points = [];
-    var intersect = false;
-    var current = null;
-    var next = null;
-
-    for (var i = 0; i < self.coeffs.length; i++) {
-      intersect = intersectionPoint(
-        coeff.a,
-        coeff.b,
-        self.coeffs[i].a,
-        self.coeffs[i].b
-      );
-
-      if (intersect) {
-        // is aligned
-        var p1 = self.segments[i].p1;
-        var p2 = self.segments[i].p2;
-        if (lieBetween(intersect, p1, p2)) {
-          // is on a bound
-          current = {x: x, y: y};
-          next = {x: x + vx, y: y + vy};
-          if (lieBetween(next, current, intersect)) {
-            // will intersect
-
-            var bounce = normalVectorToLine(self.coeffs[i]);
-            return {
-              intersect: intersect,
-              bounce: bounce
-            };
-          }
-        }
-      }
-    }
-
-    return {
-      intersect: false,
-      bounce: false
-    };
-  };
-
-  self.computeBoundaryEquations();
-};
 
 // MATH LIB
 function norm(a, b) {
@@ -229,13 +36,13 @@ function dist(a, b) {
   return norm(a.x - b.x, a.y - b.y);
 }
 
-function lineCoefficients(x1, y1, x2, y2) {
+function lineCoefficients(p1, p2) {
   var slope = 0;
-  if ((x2 - x1) !== 0) {
-    slope = (y2 - y1) / (x2 - x1);
+  if ((p2.x - p1.x) !== 0) {
+    slope = (p2.y - p1.y) / (p2.x - p1.x);
   }
 
-  var intercept = y2 - (slope * x2);
+  var intercept = p2.y - (slope * p2.x);
 
   return {
     a: slope,
@@ -257,70 +64,21 @@ function intersectionPoint(a1, b1, a2, b2) {
   };
 }
 
-function dot(v, w) {
-  var d = (v.x * w.x) + (v.y * w.y);
-  return d;
-}
-
 function lieBetween(t, p1, p2) {
-  var v = {
-    x: t.x - p1.x,
-    y: t.y - p1.y
-  };
-  var w = {
-    x: t.x - p2.x,
-    y: t.y - p2.y
-  };
+  var v = new Vector(t.x - p1.x, t.y - p1.y);
+  var w = new Vector(t.x - p2.x, t.y - p2.y);
 
-  var d = dot(v, w);
+  var d = v.dot(w);
   return d < 0;
 }
 
-function normalize(v) {
-  var n = norm(v.x, v.y);
-  return {
-    x: v.x / n,
-    y: v.y / n
-  };
-}
-
-function rotateVector(v, angle) {
-  var m = [];
-  m[0] = [Math.cos(angle), -Math.sin(angle)];
-  m[1] = [Math.sin(angle), Math.cos(angle)];
-
-  return {
-    x: (m[0][0] * v.x) + (m[0][1] * v.y),
-    y: (m[1][0] * v.x) + (m[1][1] * v.y)
-  };
-}
-
 function normalVectorToLine(coeff) {
-  var p1 = {
-    x: 0,
-    y: coeff.b
-  };
-  var p2 = {
-    x: 1,
-    y: coeff.a + coeff.b
-  };
+  var p1 = new Vector(0, coeff.b);
+  var p2 = new Vector(1, coeff.a + coeff.b);
 
-  var v = {
-    x: p2.x - p1.x,
-    y: p2.y - p1.y
-  };
-
-  return rotateVector(v, Math.PI / 2);
-}
-
-function reflectVector(v, d) {
-  var n = normalize(d);
-  var f = 2 * dot(v, n);
-
-  return {
-    x: v.x - (f * n.x),
-    y: v.y - (f * n.y)
-  };
+  var v = new Vector(p2.x - p1.x, p2.y - p1.y);
+  v.rotate(Math.PI / 2);
+  return v;
 }
 
 // CORE
@@ -343,16 +101,13 @@ function init() {
 
     scale();
 
-    var center = {
-      x: CENTER_X,
-      y: CENTER_Y
-    };
+    center = new Vector(CENTER_X, CENTER_Y);
     polygon = new Polygon(registerVertices(), 'black', 3);
 
     registerVertices();
     setupCannons('blue');
 
-    var b = new Bubble(CENTER_X, CENTER_Y, 'red');
+    var b = new Bubble(CENTER_X, CENTER_Y, 'red', RADIUS, SPEED);
     bubbles.push(b);
 
     canvas.addEventListener('click', onClick);
@@ -376,12 +131,9 @@ function onClick(e) {
     render();
   } else if (selected) { // empty space was clicked
     input = false;
-    selected.setDirection(e.x, e.y);
+    selected.setDirection(e);
 
     detectCollision();
-
-    bubbles.push(new Bubble(intersect.x, intersect.y, 'green'));
-    bubbles.push(new Bubble(bounce.x, bounce.y, 'green'));
 
     render();
   }
@@ -397,10 +149,10 @@ function registerVertices() {
   var vertices = [];
 
   for (var i = 0; i < SIDES; i++) {
-    vertices.push({
-      x: CENTER_X + GON_CHORD * Math.cos(i * 2 * Math.PI / SIDES),
-      y: CENTER_Y + GON_CHORD * Math.sin(i * 2 * Math.PI / SIDES)
-    });
+    vertices.push(new Vector(
+      CENTER_X + GON_CHORD * Math.cos(i * 2 * Math.PI / SIDES),
+      CENTER_Y + GON_CHORD * Math.sin(i * 2 * Math.PI / SIDES)
+    ));
   }
 
   return vertices;
@@ -413,7 +165,9 @@ function setupCannons(color) {
     var b = new Bubble(
       CENTER_X + dist * Math.cos(i * 2 * Math.PI / SIDES),
       CENTER_Y + dist * Math.sin(i * 2 * Math.PI / SIDES),
-      color
+      color,
+      RADIUS,
+      SPEED
     );
     b.setSelectable(true);
 
@@ -430,7 +184,7 @@ function render() {
 
   if (selected && !input) {
     if (dist(selected.vertex(), intersect) <= selected.radius) {
-      selected.bounce(bounce.x, bounce.y);
+      selected.bounce(normal);
 
       detectCollision();
     }
@@ -438,14 +192,14 @@ function render() {
 
   clearCanvas();
 
-  polygon.render();
+  polygon.render(ctx);
 
   cannons.forEach(function(b) {
-    b.render();
+    b.render(ctx);
   });
 
   bubbles.forEach(function(b) {
-    b.render();
+    b.render(ctx);
   });
 
   if (!input) {
@@ -459,14 +213,22 @@ function render() {
 
 function detectCollision() {
   var coll = polygon.collisionPoint(
-    selected.x,
-    selected.y,
-    selected.vx,
-    selected.vy
+    selected.vertex(),
+    selected.next()
   );
 
   intersect = coll.intersect;
-  bounce = coll.bounce;
+  normal = coll.normal;
+
+  if (normal) {
+    var b = new Vector(normal.x - intersect.x, normal.y - intersect.y);
+    if (!lieBetween(b, intersect, center)) {
+      normal.flip();
+    }
+  }
+
+  bubbles.push(new Bubble(intersect.x, intersect.y, 'green', RADIUS, SPEED));
+  console.log(normal);
 
   intersectFrame = frame + selected.collisionFrame(intersect);
 }
