@@ -17,6 +17,8 @@ var raf = null;
 var input = true;
 var selected = null;
 
+var frame = 0;
+var intersectFrame = -1;
 var intersect = null;
 var bounce = null;
 
@@ -103,26 +105,39 @@ var Bubble = function(x, y, color) {
 
     self.setDirection(v.x, v.y);
   };
+
+  self.vertex = function() {
+    return {
+      x: self.x,
+      y: self.y
+    };
+  };
+
+  self.collisionFrame = function(p) {
+    var d = dist(p, self.vertex());
+    var vel = {
+      x: self.vx,
+      y: self.vy
+    };
+    var v = dist(self.vertex(), vel);
+
+    var x = d / v;
+    return Math.floor(x);
+  };
 };
 
-var Polygon = function(center, vertices, color, width) {
+var Polygon = function(vertices, color, width) {
   var self = this;
 
-  self.center = center;
   self.vertices = vertices;
   self.sides = vertices.length;
   self.color = color;
   self.width = width;
-  self.coeffs = {};
-  self.radius = 0;
-
-  self.computeRadius = function() {
-    var v = self.vertices[0];
-    self.radius = dist(v, self.center);
-  };
+  self.segments = [];
+  self.coeffs = [];
 
   self.computeBoundaryEquations = function() {
-    self.coeffs = {};
+    self.coeffs = [];
 
     var next = 0;
     var p1 = null;
@@ -136,8 +151,11 @@ var Polygon = function(center, vertices, color, width) {
       p2 = self.vertices[next];
       coeff = lineCoefficients(p1.x, p1.y, p2.x, p2.y);
 
-      index = JSON.stringify(p1) + '-' + JSON.stringify(p2);
-      self.coeffs[index] = coeff;
+      self.segments.push({
+        p1: p1,
+        p2: p2
+      });
+      self.coeffs.push(coeff);
     }
   };
 
@@ -164,27 +182,26 @@ var Polygon = function(center, vertices, color, width) {
     var current = null;
     var next = null;
 
-    for (var key in self.coeffs) {
+    for (var i = 0; i < self.coeffs.length; i++) {
       intersect = intersectionPoint(
         coeff.a,
         coeff.b,
-        self.coeffs[key].a,
-        self.coeffs[key].b
+        self.coeffs[i].a,
+        self.coeffs[i].b
       );
 
       if (intersect) {
         // is aligned
-        if (dist(center, intersect) <= self.radius) {
-          // is inside the circle
+        var p1 = self.segments[i].p1;
+        var p2 = self.segments[i].p2;
+        if (lieBetween(intersect, p1, p2)) {
+          // is on a bound
           current = {x: x, y: y};
           next = {x: x + vx, y: y + vy};
           if (lieBetween(next, current, intersect)) {
             // will intersect
 
-            var bounce = {
-              x: self.coeffs[key].a,
-              y: self.coeffs[key].b
-            };
+            var bounce = normalVectorToLine(self.coeffs[i]);
             return {
               intersect: intersect,
               bounce: bounce
@@ -200,7 +217,6 @@ var Polygon = function(center, vertices, color, width) {
     };
   };
 
-  self.computeRadius();
   self.computeBoundaryEquations();
 };
 
@@ -268,6 +284,35 @@ function normalize(v) {
   };
 }
 
+function rotateVector(v, angle) {
+  var m = [];
+  m[0] = [Math.cos(angle), -Math.sin(angle)];
+  m[1] = [Math.sin(angle), Math.cos(angle)];
+
+  return {
+    x: (m[0][0] * v.x) + (m[0][1] * v.y),
+    y: (m[1][0] * v.x) + (m[1][1] * v.y)
+  };
+}
+
+function normalVectorToLine(coeff) {
+  var p1 = {
+    x: 0,
+    y: coeff.b
+  };
+  var p2 = {
+    x: 1,
+    y: coeff.a + coeff.b
+  };
+
+  var v = {
+    x: p2.x - p1.x,
+    y: p2.y - p1.y
+  };
+
+  return rotateVector(v, Math.PI / 2);
+}
+
 function reflectVector(v, d) {
   var n = normalize(d);
   var f = 2 * dot(v, n);
@@ -302,7 +347,7 @@ function init() {
       x: CENTER_X,
       y: CENTER_Y
     };
-    polygon = new Polygon(center, registerVertices(), 'black', 3);
+    polygon = new Polygon(registerVertices(), 'black', 3);
 
     registerVertices();
     setupCannons('blue');
@@ -333,15 +378,7 @@ function onClick(e) {
     input = false;
     selected.setDirection(e.x, e.y);
 
-    var coll = polygon.collisionPoint(
-      selected.x,
-      selected.y,
-      selected.vx,
-      selected.vy
-    );
-
-    intersect = coll.intersect;
-    bounce = coll.bounce;
+    detectCollision();
 
     bubbles.push(new Bubble(intersect.x, intersect.y, 'green'));
     bubbles.push(new Bubble(bounce.x, bounce.y, 'green'));
@@ -389,19 +426,13 @@ function clearCanvas() {
 }
 
 function render() {
+  frame++;
+
   if (selected && !input) {
-    if (dist(selected, intersect) <= selected.radius) {
+    if (dist(selected.vertex(), intersect) <= selected.radius) {
       selected.bounce(bounce.x, bounce.y);
 
-      var coll = polygon.collisionPoint(
-        selected.x,
-        selected.y,
-        selected.vx,
-        selected.vy
-      );
-
-      intersect = coll.intersect;
-      bounce = coll.bounce;
+      detectCollision();
     }
   }
 
@@ -427,5 +458,15 @@ function render() {
 }
 
 function detectCollision() {
+  var coll = polygon.collisionPoint(
+    selected.x,
+    selected.y,
+    selected.vx,
+    selected.vy
+  );
 
+  intersect = coll.intersect;
+  bounce = coll.bounce;
+
+  intersectFrame = frame + selected.collisionFrame(intersect);
 }
