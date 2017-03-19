@@ -221,11 +221,10 @@ function detectCollision() {
 
   if (normal) {
     var b = new Vector(center.x - intersect.x, center.y - intersect.y);
-    if (b.dot(normal) < 0) {
+    if (b.dot(normal) > 0) {
       normal.flip();
     }
   }
 
   bubbles.push(new Bubble(intersect.x, intersect.y, 'green', RADIUS, SPEED));
-  console.log(normal);
 }

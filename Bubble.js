@@ -44,9 +44,10 @@ var Bubble = function(x, y, color, radius, speed) {
     return dist <= self.radius;
   };
 
-  self.setSpeed = function(vx, vy) {
-    self.vx = vx;
-    self.vy = vy;
+  self.setSpeed = function(v) {
+    v.normalize();
+    self.vx = v.x * self.speed;
+    self.vy = v.y * self.speed;
   };
 
   self.stop = function() {
@@ -54,10 +55,7 @@ var Bubble = function(x, y, color, radius, speed) {
   };
 
   self.setDirection = function(v) {
-    var x = v.x;
-    var y = v.y;
-    var n = norm(x - self.x, y - self.y);
-    self.setSpeed((x - self.x) / n * self.speed, (y - self.y) / n * self.speed);
+    self.setSpeed(new Vector((v.x - self.x), (v.y - self.y)));
   };
 
   self.updatePosition = function() {
@@ -66,9 +64,9 @@ var Bubble = function(x, y, color, radius, speed) {
   };
 
   self.bounce = function(n) {
-    var v = self.velocity().reflect(n);
+    var v = self.velocity().reflect(n).flip();
 
-    self.setDirection(v);
+    self.setSpeed(v);
   };
 
   self.vertex = function() {
