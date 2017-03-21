@@ -23,18 +23,10 @@ var intersect = null;
 var normal = null;
 
 var polygon = null;
-var bubbles = [];
 var cannons = [];
+var grid = null;
 
 // MATH LIB
-function norm(a, b) {
-  return Math.sqrt((a * a) + (b * b));
-}
-
-function dist(a, b) {
-  return norm(a.x - b.x, a.y - b.y);
-}
-
 function lineCoefficients(p1, p2) {
   var slope = 0;
   if ((p2.x - p1.x) !== 0) {
@@ -103,11 +95,8 @@ function init() {
     center = new Vector(CENTER_X, CENTER_Y);
     polygon = new Polygon(registerVertices(), 'black', 3);
 
-    registerVertices();
     setupCannons('blue');
-
-    var b = new Bubble(CENTER_X, CENTER_Y, 'red', RADIUS, SPEED);
-    bubbles.push(b);
+    setupGrid('red');
 
     canvas.addEventListener('click', onClick);
     render();
@@ -130,9 +119,11 @@ function onClick(e) {
     render();
   } else if (selected) { // empty space was clicked
     input = false;
+    removeFromCannons(selected);
+    selected.setSelected(false);
     selected.setDirection(e);
 
-    detectCollision();
+    detectBoundaryCollision();
 
     render();
   }
@@ -141,6 +132,13 @@ function onClick(e) {
 function unselect() {
   if (selected) {
     selected.setSelected(false);
+  }
+}
+
+function removeFromCannons(c) {
+  var index = cannons.indexOf(c);
+  if (index >= 0) {
+    cannons.splice(index, 1);
   }
 }
 
@@ -174,6 +172,12 @@ function setupCannons(color) {
   }
 }
 
+function setupGrid(color) {
+  var center = new Bubble(CENTER_X, CENTER_Y, color, RADIUS, SPEED);
+  grid = new Grid(SIDES);
+  grid.init(center);
+}
+
 function clearCanvas() {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
@@ -181,26 +185,26 @@ function clearCanvas() {
 function render() {
   frame++;
 
-  if (selected && !input) {
-    if (dist(selected.vertex(), intersect) <= selected.radius) {
-      selected.bounce(normal);
-
-      detectCollision();
-    }
-  }
+  detectCollision();
 
   clearCanvas();
 
   polygon.render(ctx);
 
+  if (selected) {
+    selected.render(ctx);
+  }
+
   cannons.forEach(function(b) {
     b.render(ctx);
   });
 
-  bubbles.forEach(function(b) {
-    b.render(ctx);
-  });
+  grid.render(ctx);
 
+  animateNext();
+}
+
+function animateNext() {
   if (!input) {
     raf = requestAnimationFrame(render);
   } else if (raf) {
@@ -211,6 +215,17 @@ function render() {
 }
 
 function detectCollision() {
+  if (selected && !input) {
+    if (selected.vertex().distanceTo(intersect) <= selected.radius) {
+      selected.bounce(normal);
+      detectBoundaryCollision();
+    }
+
+    detectGridCollision();
+  }
+}
+
+function detectBoundaryCollision() {
   var coll = polygon.collisionPoint(
     selected.vertex(),
     selected.next()
@@ -222,9 +237,18 @@ function detectCollision() {
   if (normal) {
     var b = new Vector(center.x - intersect.x, center.y - intersect.y);
     if (b.dot(normal) > 0) {
+      // make sure than the normal vector is pointed inward
       normal.flip();
     }
   }
+}
 
-  bubbles.push(new Bubble(intersect.x, intersect.y, 'green', RADIUS, SPEED));
+function detectGridCollision() {
+  var snap = grid.collide(selected);
+
+  if (snap) {
+    selected.stop();
+    selected = null;
+    input = true;
+  }
 }

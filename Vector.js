@@ -31,6 +31,11 @@ var Vector = function(x, y) {
 
   self.normalize = function() {
     var n = self.norm();
+
+    if (n === 0) {
+      return self;
+    }
+
     self.x /= n;
     self.y /= n;
 

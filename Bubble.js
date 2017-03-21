@@ -39,7 +39,7 @@ var Bubble = function(x, y, color, radius, speed) {
   };
 
   self.clicked = function(x, y) {
-    var dist = norm(self.x - x, self.y - y);
+    var dist = (new Vector(self.x - x, self.y - y)).norm();
 
     return dist <= self.radius;
   };
@@ -51,7 +51,7 @@ var Bubble = function(x, y, color, radius, speed) {
   };
 
   self.stop = function() {
-    self.setSpeed(0, 0);
+    self.setSpeed(new Vector(0, 0));
   };
 
   self.setDirection = function(v) {
@@ -82,5 +82,9 @@ var Bubble = function(x, y, color, radius, speed) {
       self.x + self.vx,
       self.y + self.vy
     );
+  };
+
+  self.collide = function(b) {
+    return self.vertex().distanceTo(b.vertex()) <= (self.radius + b.radius);
   };
 };
