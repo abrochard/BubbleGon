@@ -1,12 +1,27 @@
 var Node = function(sides, object) {
   var self = this;
 
-  self.neighbors = Array.apply(null, Array(sides))
-    .map(Number.prototype.valueOf, 0); // init array with 0
+  self.neighbors = [];
+  self.sides = sides;
   self.object = object;
 
-  self.setObject = function(o) {
-    self.object = o;
+  self.registerNeighbors = function() {
+    self.neighbors = [];
+    var v = null;
+    var x = self.object.x;
+    var y = self.object.y;
+    var r = self.object.radius * 2;
+
+    for (var i = 0; i < self.sides; i++) {
+      v = new Vector(
+        x + r * Math.cos(i * 2 * Math.PI / self.sides),
+        y + r * Math.sin(i * 2 * Math.PI / self.sides)
+      );
+      self.neighbors.push({
+        v: v,
+        empty: true
+      });
+    }
   };
 
   self.render = function(ctx) {
@@ -14,6 +29,31 @@ var Node = function(sides, object) {
       self.object.render(ctx);
     }
   };
+
+  self.findClosestNeighbor = function(x) {
+    var min = -1;
+    var index = -1;
+
+    for (var i = 0; i < self.neighbors.length; i++) {
+      var n = self.neighbors[i];
+      if (n.empty) {
+        var d = n.v.distanceTo(x);
+        if (min < 0 || d < min) {
+          index = i;
+          min = d;
+        }
+      }
+    }
+
+    return self.neighbors[index].v;
+  };
+
+  self.snap = function(neighbor) {
+    var v = neighbor.findClosestNeighbor(self.object);
+    self.object.setPosition(v);
+  };
+
+  self.registerNeighbors();
 };
 
 var Grid = function(sides) {
@@ -33,8 +73,9 @@ var Grid = function(sides) {
     });
   };
 
-  self.add = function(bubble) {
+  self.add = function(node, bubble) {
     var n = new Node(self.sides, bubble);
+    n.snap(node);
     self.nodes.push(n);
   };
 
@@ -46,7 +87,7 @@ var Grid = function(sides) {
     if (coll.length === 0) {
       return false;
     } else {
-      self.add(bubble);
+      self.add(coll[0], bubble);
       return true;
     }
   };

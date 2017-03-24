@@ -56,6 +56,13 @@ var Bubble = function(x, y, color, radius, speed) {
 
   self.setDirection = function(v) {
     self.setSpeed(new Vector((v.x - self.x), (v.y - self.y)));
+    return self;
+  };
+
+  self.setPosition = function(p) {
+    self.x = p.x;
+    self.y = p.y;
+    return self;
   };
 
   self.updatePosition = function() {
