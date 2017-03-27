@@ -1,94 +1,147 @@
-var Node = function(sides, object) {
+var Grid = function(x, y, sides, distance, limit) {
   var self = this;
 
-  self.neighbors = [];
+  self.x = x;
+  self.y = y;
   self.sides = sides;
-  self.object = object;
-
-  self.registerNeighbors = function() {
-    self.neighbors = [];
-    var v = null;
-    var x = self.object.x;
-    var y = self.object.y;
-    var r = self.object.radius * 2;
-
-    for (var i = 0; i < self.sides; i++) {
-      v = new Vector(
-        x + r * Math.cos(i * 2 * Math.PI / self.sides),
-        y + r * Math.sin(i * 2 * Math.PI / self.sides)
-      );
-      self.neighbors.push({
-        v: v,
-        empty: true
-      });
-    }
-  };
-
-  self.render = function(ctx) {
-    if (self.object) {
-      self.object.render(ctx);
-    }
-  };
-
-  self.findClosestNeighbor = function(x) {
-    var min = -1;
-    var index = -1;
-
-    for (var i = 0; i < self.neighbors.length; i++) {
-      var n = self.neighbors[i];
-      if (n.empty) {
-        var d = n.v.distanceTo(x);
-        if (min < 0 || d < min) {
-          index = i;
-          min = d;
-        }
-      }
-    }
-
-    return self.neighbors[index].v;
-  };
-
-  self.snap = function(neighbor) {
-    var v = neighbor.findClosestNeighbor(self.object);
-    self.object.setPosition(v);
-  };
-
-  self.registerNeighbors();
-};
-
-var Grid = function(sides) {
-  var self = this;
-
+  self.distance = distance;
+  self.limit = limit;
   self.nodes = [];
-  self.sides = sides;
+  self.nodesHashIndex = {};
+  self.nonEmptyNodesIndex = {};
 
   self.init = function(bubble) {
-    var n = new Node(self.sides, bubble);
-    self.nodes.push(n);
+    var v = new Vector(self.x, self.y);
+    var center = new Vector(self.x, self.y);
+    var n = new Node(self.x, self.y, bubble);
+    self.addNode(n);
+
+    var queue = self.registerNeighbors(n);
+    var i = 0;
+    var l = queue.length;
+
+    while (i < l) {
+      n = queue[i];
+      if (n.vertex().distanceTo(center) < self.limit) {
+        queue = queue.concat(self.registerNeighbors(n));
+        l = queue.length;
+      }
+      i++;
+    }
+  };
+
+  self.addNode = function(node) {
+    self.nodesHashIndex[node.hash] = self.nodes.length;
+    if (node.isEmpty() === false) {
+      self.nonEmptyNodesIndex[node.hash] = self.nodes.length;
+    }
+    self.nodes.push(node);
+  };
+
+  self.registerNeighbors = function(node) {
+    var x = 0;
+    var y = 0;
+    var hash = '';
+    var n = null;
+    var created = [];
+
+    for (var i = 0; i < self.sides; i++) {
+      x = node.x + self.distance * Math.cos(i * 2 * Math.PI / self.sides);
+      y = node.y + self.distance * Math.sin(i * 2 * Math.PI / self.sides);
+      hash = JSON.stringify({x: x, y: y});
+
+      if (typeof self.nodesHashIndex[hash] !== 'undefined') {
+        // node already exists
+        n = self.nodes[self.nodesHashIndex[hash]];
+      } else {
+        // create a new one
+        n = new Node(x, y, null);
+        self.addNode(n);
+        created.push(n);
+      }
+      node.addNeighbor(i, n);
+    }
+
+    return created;
   };
 
   self.render = function(ctx) {
-    self.nodes.forEach(function(n) {
-      n.render(ctx);
-    });
-  };
-
-  self.add = function(node, bubble) {
-    var n = new Node(self.sides, bubble);
-    n.snap(node);
-    self.nodes.push(n);
+    if (DEBUG) {
+      self.nodes.forEach(function(n) {
+        n.render(ctx);
+      });
+    } else {
+      var index = 0;
+      for (var hash in self.nonEmptyNodesIndex) {
+        index = self.nonEmptyNodesIndex[hash];
+        self.nodes[index].render(ctx);
+      }
+    }
   };
 
   self.collide = function(bubble) {
-    var coll = self.nodes.filter(function(n) {
-      return n.object.collide(bubble);
-    });
+    var coll = [];
+    var index = 0;
+    var n = null;
+
+    for (var hash in self.nonEmptyNodesIndex) {
+      index = self.nonEmptyNodesIndex[hash];
+      n = self.nodes[index];
+      if (n.bubble.collide(bubble)) {
+        coll.push(n);
+      }
+    }
 
     if (coll.length === 0) {
       return false;
     } else {
-      self.add(coll[0], bubble);
+      n = coll[0].findClosestNeighbor(bubble.vertex(), true);
+      n.setBubble(bubble);
+      self.nonEmptyNodesIndex[n.hash] = self.nodesHashIndex[n.hash];
+      self.propagate(n);
       return true;
+    }
+  };
+
+  self.propagate = function(node) {
+    var color = node.bubble.color;
+    var size = 1;
+    var hashesToEmtpy = [];
+    hashesToEmtpy.push(node.hash);
+    var nodesToCheck = node.nonEmptyNeighbors();
+    var visited = {};
+    visited[node.hash] = true;
+
+    var i = 0;
+    var l = nodesToCheck.length;
+    var toCheck = null;
+
+    while (i < l) {
+      toCheck = nodesToCheck[i];
+      if (typeof visited[toCheck.hash] === 'undefined') {
+        // never visited node
+        visited[toCheck.hash] = true;
+        if (toCheck.bubble.color == color) {
+          hashesToEmtpy.push(toCheck.hash);
+          nodesToCheck = nodesToCheck.concat(toCheck.nonEmptyNeighbors());
+          size++;
+          l = nodesToCheck.length;
+        }
+      }
+      i++;
+    }
+
+    if (size >= 3) {
+      self.emptyNodes(hashesToEmtpy);
+    }
+  };
+
+  self.emptyNodes = function(hashes) {
+    var n = null;
+    for (var i = 0; i < hashes.length; i++) {
+      n = self.nodes[self.nodesHashIndex[hashes[i]]];
+      n.bubble = null;
+      delete self.nonEmptyNodesIndex[hashes[i]];
     }
   };
 };

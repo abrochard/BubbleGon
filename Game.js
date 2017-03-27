@@ -10,6 +10,8 @@ var MARGIN = 5;
 var SPEED = 15;
 var SELECTED_COLOR = 'white';
 
+var DEBUG = false;
+
 // GLOBAL VAR
 var ctx = null;
 var raf = null;
@@ -85,12 +87,31 @@ function scale() {
   RADIUS = GON_CHORD / RADIUS_SCALING;
 }
 
+function reset() {
+  raf = null;
+  center = null;
+
+  input = true;
+  selected = null;
+
+  frame = 0;
+  intersect = null;
+  normal = null;
+
+  polygon = null;
+  cannons = [];
+  grid = null;
+}
+
 function init() {
   var canvas = document.getElementById('board');
   if (canvas.getContext) {
     ctx = canvas.getContext('2d');
 
     scale();
+
+    clearCanvas();
+    reset();
 
     center = new Vector(CENTER_X, CENTER_Y);
     polygon = new Polygon(registerVertices(), 'black', 3);
@@ -174,7 +195,7 @@ function setupCannons(color) {
 
 function setupGrid(color) {
   var center = new Bubble(CENTER_X, CENTER_Y, color, RADIUS, SPEED);
-  grid = new Grid(SIDES);
+  grid = new Grid(CENTER_X, CENTER_Y, SIDES, 2 * RADIUS, GON_CHORD);
   grid.init(center);
 }
 
