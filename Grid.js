@@ -1,26 +1,29 @@
-var Grid = function(x, y, sides, distance, limit) {
+'use strict';
+var Grid = function(x, y, distance, limit) {
   var self = this;
 
   self.x = x;
   self.y = y;
-  self.sides = sides;
+  self.sides = 6;
   self.distance = distance;
   self.limit = limit;
   self.nodes = [];
   self.nodesHashIndex = {};
   self.nonEmptyNodesIndex = {};
 
-  self.init = function(bubble) {
+  self.colors = [];
+
+  self.init = function(colors, maxColors) {
     var v = new Vector(self.x, self.y);
     var center = new Vector(self.x, self.y);
-    var n = new Node(self.x, self.y, bubble);
+    var n = new Node(self.x, self.y, null);
     self.addNode(n);
 
     var queue = self.registerNeighbors(n);
     var i = 0;
     var l = queue.length;
 
-    while (i < l) {
+    while (i < l && i < 4000) {
       n = queue[i];
       if (n.vertex().distanceTo(center) < self.limit) {
         queue = queue.concat(self.registerNeighbors(n));
@@ -28,6 +31,43 @@ var Grid = function(x, y, sides, distance, limit) {
       }
       i++;
     }
+
+    return self.generate(colors, maxColors);
+  };
+
+  self.generate = function(colors, maxColors) {
+    var pool = getNRandom(maxColors, colors);
+    var color = pool[Math.floor(Math.random() * pool.length)];
+    var bubble = new Bubble(self.x, self.y, color, self.distance / 2, 0);
+    self.setBubble(0, bubble);
+    self.colors.push(bubble.color);
+
+    var hash = '';
+    var n = null;
+    for (var i = 0; i < self.nodes[0].neighbors.length; i++) {
+      hash = self.nodes[0].neighbors[i].hash;
+      n = self.nodes[self.nodesHashIndex[hash]];
+      color = pool[Math.floor(Math.random() * pool.length)];
+      bubble = new Bubble(n.x, n.y, color, self.distance / 2, 0);
+      self.setBubble(self.nodesHashIndex[hash], bubble);
+    }
+
+    return pool;
+  };
+
+  var getNRandom = function(n, arr) {
+    if (n >= arr.length) {
+      return arr;
+    }
+
+    var output = [];
+    var x = 0;
+    for (var i = 0; i < n; i++) {
+      x = Math.floor(Math.random() * arr.length);
+      output = output.concat(arr.splice(x, 1));
+    }
+
+    return output;
   };
 
   self.addNode = function(node) {
@@ -36,6 +76,11 @@ var Grid = function(x, y, sides, distance, limit) {
       self.nonEmptyNodesIndex[node.hash] = self.nodes.length;
     }
     self.nodes.push(node);
+  };
+
+  self.setBubble = function(index, bubble) {
+    self.nodes[index].setBubble(bubble);
+    self.nonEmptyNodesIndex[self.nodes[index].hash] = index;
   };
 
   self.registerNeighbors = function(node) {
@@ -99,6 +144,7 @@ var Grid = function(x, y, sides, distance, limit) {
       n.setBubble(bubble);
       self.nonEmptyNodesIndex[n.hash] = self.nodesHashIndex[n.hash];
       self.propagate(n);
+      self.refreshActiveColors();
       return true;
     }
   };
@@ -143,5 +189,26 @@ var Grid = function(x, y, sides, distance, limit) {
       n.bubble = null;
       delete self.nonEmptyNodesIndex[hashes[i]];
     }
+  };
+
+  self.activeColors = function() {
+    return self.colors;
+  };
+
+  self.refreshActiveColors = function() {
+    self.colors = [];
+    var found = {};
+    var b = null;
+    for (var key in self.nonEmptyNodesIndex) {
+      b = self.nodes[self.nonEmptyNodesIndex[key]].bubble;
+      if (typeof found[b.color] === 'undefined') {
+        self.colors.push(b.color);
+        found[b.color] = true;
+      }
+    }
+  };
+
+  self.isEmpty = function() {
+	return Object.keys(self.nonEmptyNodesIndex).length === 0 && self.nonEmptyNodesIndex.constructor === Object;
   };
 };

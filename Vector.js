@@ -1,3 +1,4 @@
+'use strict';
 var Vector = function(x, y) {
   var self = this;
   self.x = x;

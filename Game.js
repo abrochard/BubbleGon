@@ -1,3 +1,5 @@
+'use strict';
+
 // CONSTANTS
 var GON_CHORD = 100;
 var CHORD_SCALING = 1.2;
@@ -9,6 +11,15 @@ var RADIUS_SCALING = 23;
 var MARGIN = 5;
 var SPEED = 15;
 var SELECTED_COLOR = 'white';
+
+var COLORS = [
+  'red',
+  'blue',
+  'green',
+  'yellow',
+  'purple'
+];
+var MAX_COLORS = 4;
 
 var DEBUG = false;
 
@@ -27,52 +38,6 @@ var normal = null;
 var polygon = null;
 var cannons = [];
 var grid = null;
-
-// MATH LIB
-function lineCoefficients(p1, p2) {
-  var slope = 0;
-  if ((p2.x - p1.x) !== 0) {
-    slope = (p2.y - p1.y) / (p2.x - p1.x);
-  }
-
-  var intercept = p2.y - (slope * p2.x);
-
-  return {
-    a: slope,
-    b: intercept
-  };
-}
-
-function intersectionPoint(a1, b1, a2, b2) {
-  if ((a1 - a2) === 0) {
-    return false;
-  }
-
-  var x = (b2 - b1) / (a1 - a2);
-  var y = ((a1 * b2) - (a2 * b1)) / (a1 - a2);
-
-  return {
-    x: x,
-    y: y
-  };
-}
-
-function lieBetween(t, p1, p2) {
-  var v = new Vector(t.x - p1.x, t.y - p1.y);
-  var w = new Vector(t.x - p2.x, t.y - p2.y);
-
-  var d = v.dot(w);
-  return d < 0;
-}
-
-function normalVectorToLine(coeff) {
-  var p1 = new Vector(0, coeff.b);
-  var p2 = new Vector(1, coeff.a + coeff.b);
-
-  var v = new Vector(p2.x - p1.x, p2.y - p1.y);
-  v.rotate(Math.PI / 2);
-  return v;
-}
 
 // CORE
 function scale() {
@@ -114,10 +79,10 @@ function init() {
     reset();
 
     center = new Vector(CENTER_X, CENTER_Y);
-    polygon = new Polygon(registerVertices(), 'black', 3);
+    polygon = new Polygon(center, registerVertices(), 'black', 3);
 
-    setupCannons('blue');
-    setupGrid('red');
+    var colors = setupGrid(COLORS, MAX_COLORS);
+    setupCannons(getRandomColor(colors));
 
     canvas.addEventListener('click', onClick);
     render();
@@ -193,10 +158,21 @@ function setupCannons(color) {
   }
 }
 
-function setupGrid(color) {
-  var center = new Bubble(CENTER_X, CENTER_Y, color, RADIUS, SPEED);
-  grid = new Grid(CENTER_X, CENTER_Y, SIDES, 2 * RADIUS, GON_CHORD);
-  grid.init(center);
+function getRandomColor(colors) {
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
+function rotateCannons() {
+  cannons = [];
+  var colors = grid.activeColors();
+  var color = getRandomColor(colors);
+  setupCannons(color);
+  render();
+}
+
+function setupGrid(colors, maxColors) {
+  grid = new Grid(CENTER_X, CENTER_Y, 2 * RADIUS, GON_CHORD);
+  return grid.init(colors, maxColors);
 }
 
 function clearCanvas() {
@@ -232,6 +208,8 @@ function animateNext() {
     cancelAnimationFrame(raf);
     raf = null;
     input = true;
+
+	rotateCannons();
   }
 }
 

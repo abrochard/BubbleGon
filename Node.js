@@ -1,3 +1,4 @@
+'use strict';
 var Node = function(x, y, bubble) {
   var self = this;
 
