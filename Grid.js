@@ -11,7 +11,7 @@ var Grid = function(x, y, distance, limit) {
   self.nodesHashIndex = {};
   self.nonEmptyNodesIndex = {};
 
-  self.colors = [];
+  self.colors = {};
 
   self.init = function(colors, maxColors) {
     var v = new Vector(self.x, self.y);
@@ -40,7 +40,6 @@ var Grid = function(x, y, distance, limit) {
     var color = pool[Math.floor(Math.random() * pool.length)];
     var bubble = new Bubble(self.x, self.y, color, self.distance / 2, 0);
     self.setBubble(0, bubble);
-    self.colors.push(bubble.color);
 
     var hash = '';
     var n = null;
@@ -52,7 +51,7 @@ var Grid = function(x, y, distance, limit) {
       self.setBubble(self.nodesHashIndex[hash], bubble);
     }
 
-    return pool;
+    return self.activeColors();
   };
 
   var getNRandom = function(n, arr) {
@@ -81,6 +80,7 @@ var Grid = function(x, y, distance, limit) {
   self.setBubble = function(index, bubble) {
     self.nodes[index].setBubble(bubble);
     self.nonEmptyNodesIndex[self.nodes[index].hash] = index;
+    self.colors[bubble.color] = true;
   };
 
   self.registerNeighbors = function(node) {
@@ -192,23 +192,24 @@ var Grid = function(x, y, distance, limit) {
   };
 
   self.activeColors = function() {
-    return self.colors;
+    var output = [];
+    for (var key in self.colors) {
+      output.push(key);
+    }
+    return output;
   };
 
   self.refreshActiveColors = function() {
-    self.colors = [];
-    var found = {};
+    self.colors = {};
     var b = null;
     for (var key in self.nonEmptyNodesIndex) {
       b = self.nodes[self.nonEmptyNodesIndex[key]].bubble;
-      if (typeof found[b.color] === 'undefined') {
-        self.colors.push(b.color);
-        found[b.color] = true;
-      }
+      self.colors[b.color] = true;
     }
   };
 
   self.isEmpty = function() {
-	return Object.keys(self.nonEmptyNodesIndex).length === 0 && self.nonEmptyNodesIndex.constructor === Object;
+	return (Object.keys(self.nonEmptyNodesIndex).length === 0) &&
+      (self.nonEmptyNodesIndex.constructor === Object);
   };
 };
