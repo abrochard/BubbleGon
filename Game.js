@@ -160,7 +160,7 @@ function setupCannons(color) {
 
 function getRandomColor(colors) {
   return colors[Math.floor(Math.random() * colors.length)];
-};
+}
 
 function rotateCannons() {
   cannons = [];
@@ -209,7 +209,7 @@ function animateNext() {
     raf = null;
     input = true;
 
-	rotateCannons();
+    rotateCannons();
   }
 }
 
@@ -246,6 +246,7 @@ function detectGridCollision() {
   var snap = grid.collide(selected);
 
   if (snap) {
+    grid.grow();
     selected.stop();
     selected = null;
     input = true;

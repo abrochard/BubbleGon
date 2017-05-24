@@ -199,6 +199,11 @@ var Grid = function(x, y, distance, limit) {
     return output;
   };
 
+  self.getRandomActiveColor = function() {
+    var colors = self.activeColors();
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
   self.refreshActiveColors = function() {
     self.colors = {};
     var b = null;
@@ -209,7 +214,29 @@ var Grid = function(x, y, distance, limit) {
   };
 
   self.isEmpty = function() {
-	return (Object.keys(self.nonEmptyNodesIndex).length === 0) &&
+    return (Object.keys(self.nonEmptyNodesIndex).length === 0) &&
       (self.nonEmptyNodesIndex.constructor === Object);
+  };
+
+  self.grow = function() {
+    var n = self.nodes[0];
+    var color = null;
+    var bubble = null;
+
+    for (var i = 0; i < self.sides; i++) {
+      self.push(n, i);
+      color = self.getRandomActiveColor();
+      bubble = new Bubble(n.x, n.y, color, self.distance / 2, 0);
+      self.setBubble(0, bubble);
+    }
+  };
+
+  self.push = function(node, to) {
+    if (node.neighbors[to].isEmpty() === false) {
+      self.push(node.neighbors[to], to);
+    }
+    var index = self.nodesHashIndex[node.neighbors[to].hash];
+    self.setBubble(index, node.bubble);
+    self.emptyNodes([node.hash]);
   };
 };
