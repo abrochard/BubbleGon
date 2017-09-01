@@ -94,4 +94,8 @@ var Bubble = function(x, y, color, radius, speed) {
   self.collide = function(b) {
     return self.vertex().distanceTo(b.vertex()) <= (self.radius + b.radius);
   };
+
+  self.clone = function() {
+    return new Bubble(self.x, self.y, self.radius, self.speed);
+  }
 };

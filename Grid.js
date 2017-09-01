@@ -231,12 +231,46 @@ var Grid = function(x, y, distance, limit) {
     }
   };
 
-  self.push = function(node, to) {
-    if (node.neighbors[to].isEmpty() === false) {
-      self.push(node.neighbors[to], to);
+  self.mod = function(i, n) {
+    var temp = i % n;
+    if (temp < 0) {
+      return temp + n;
     }
-    var index = self.nodesHashIndex[node.neighbors[to].hash];
-    self.setBubble(index, node.bubble);
+
+    return temp;
+  };
+
+  self.push = function(node, to) {
+    if (node.neighbors.length === 0) {
+      return;
+    }
+    if (node.isEmpty()) {
+      return;
+    }
+
+    var directions = [];
+    directions.push(to);
+    directions.push(self.mod(to + 1, self.sides));
+    directions.push(self.mod(to - 1, self.sides));
+
+    for (var i = 0; i < directions.length; i++) {
+      var direction = directions[i];
+      var neighbor = node.neighbors[direction];
+      if (neighbor.isEmpty() === false && direction == to) {
+        self.push(neighbor, direction);
+      }
+
+      var clone = new Bubble(
+        node.bubble.x,
+        node.bubble.y,
+        node.bubble.color,
+        node.bubble.radius,
+        0
+      );
+      var index = self.nodesHashIndex[neighbor.hash];
+      self.setBubble(index, clone);
+    }
+
     self.emptyNodes([node.hash]);
   };
 };
