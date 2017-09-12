@@ -8,47 +8,66 @@ var Grid = function(x, y, distance, limit) {
   self.distance = distance;
   self.limit = limit;
   self.nodes = [];
-  self.nodesHashIndex = {};
+  self.hexToPixel = {};
+  self.pixelToHex = {};
   self.nonEmptyNodesIndex = {};
 
   self.colors = {};
 
+  self.max = 6;
+  self.q = (new Vector(1, 0)).times(self.distance);
+  self.r = (new Vector(Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)))
+    .times(self.distance);
+  self.b = (new Vector(Math.cos(-Math.PI / 3), Math.sin(-Math.PI / 3)))
+    .times(self.distance);
+
   self.init = function(colors, maxColors) {
-    var v = new Vector(self.x, self.y);
-    var center = new Vector(self.x, self.y);
-    var n = new Node(self.x, self.y, null);
-    self.addNode(n);
-
-    var queue = self.registerNeighbors(n);
-    var i = 0;
-    var l = queue.length;
-
-    while (i < l && i < 4000) {
-      n = queue[i];
-      if (n.vertex().distanceTo(center) < self.limit) {
-        queue = queue.concat(self.registerNeighbors(n));
-        l = queue.length;
+    for (var i = -self.max; i <= self.max; i++) {
+      self.nodes[i] = [];
+      for (var j = -self.max; j <= self.max; j++) {
+        self.nodes[i][j] = [];
+        for (var k = -self.max; k <= self.max; k++) {
+          var v = self.q.times(i).plus(self.r.times(j)).plus(self.b.times(k));
+          var x = self.x + v.x;
+          var y = self.y + v.y;
+          var node = new Node(
+            x,
+            y,
+            null
+          );
+          self.nodes[i][j][k] = node;
+          self.hexToPixel[hexHash(i, j, k)] = node.hash;
+          self.pixelToHex[node.hash] = {x: i, y: j, z: k};
+        }
       }
-      i++;
     }
+
+    self.sweep((n, x, y, z) => {
+      self.getNeighbors(x, y, z).forEach((val, i) => {
+        n.addNeighbor(i, self.nodes[val.x][val.y][val.z]);
+      });
+    });
 
     return self.generate(colors, maxColors);
   };
+
+  function hexHash(x, y, z) {
+    return x + ':' + y + ':' + z;
+  }
 
   self.generate = function(colors, maxColors) {
     var pool = getNRandom(maxColors, colors);
     var color = pool[Math.floor(Math.random() * pool.length)];
     var bubble = new Bubble(self.x, self.y, color, self.distance / 2, 0);
-    self.setBubble(0, bubble);
+    self.setBubble(0, 0, 0, bubble);
 
-    var hash = '';
-    var n = null;
-    for (var i = 0; i < self.nodes[0].neighbors.length; i++) {
-      hash = self.nodes[0].neighbors[i].hash;
-      n = self.nodes[self.nodesHashIndex[hash]];
-      color = pool[Math.floor(Math.random() * pool.length)];
-      bubble = new Bubble(n.x, n.y, color, self.distance / 2, 0);
-      self.setBubble(self.nodesHashIndex[hash], bubble);
+    for (var i = 1; i < 4; i++) {
+      var ring = self.getRing(i);
+      ring.forEach((v) => {
+        color = pool[Math.floor(Math.random() * pool.length)];
+        bubble = new Bubble(0, 0, color, self.distance / 2, 0); // coordinates don't matter
+        self.setBubble(v.x, v.y, v.z, bubble);
+      });
     }
 
     return self.activeColors();
@@ -69,50 +88,81 @@ var Grid = function(x, y, distance, limit) {
     return output;
   };
 
-  self.addNode = function(node) {
-    self.nodesHashIndex[node.hash] = self.nodes.length;
-    if (node.isEmpty() === false) {
-      self.nonEmptyNodesIndex[node.hash] = self.nodes.length;
-    }
-    self.nodes.push(node);
-  };
-
-  self.setBubble = function(index, bubble) {
-    self.nodes[index].setBubble(bubble);
-    self.nonEmptyNodesIndex[self.nodes[index].hash] = index;
+  self.setBubble = function(x, y, z, bubble) {
+    self.nodes[x][y][z].setBubble(bubble);
+    self.nonEmptyNodesIndex[hexHash(x, y, z)] = {x: x, y: y, z: z};
     self.colors[bubble.color] = true;
   };
 
-  self.registerNeighbors = function(node) {
-    var x = 0;
-    var y = 0;
-    var hash = '';
-    var n = null;
-    var created = [];
+  self.getNeighbors = function(x, y, z) {
+    return [
+      {x: x + 1, y: y - 1, z: z},
+      {x: x + 1, y: y, z: z - 1},
+      {x: x + 1, y: y, z: z},
+      {x: x - 1, y: y + 1, z: z},
+      {x: x - 1, y: y, z: z + 1},
+      {x: x - 1, y: y, z: z}
+    ].filter((n) => {
+      return (n.x <= self.max && n.x >= -self.max) &&
+        (n.y <= self.max && n.y >= -self.max) &&
+        (n.z <= self.max && n.z >= -self.max);
+    });
+  };
 
-    for (var i = 0; i < self.sides; i++) {
-      x = node.x + self.distance * Math.cos(i * 2 * Math.PI / self.sides);
-      y = node.y + self.distance * Math.sin(i * 2 * Math.PI / self.sides);
-      hash = JSON.stringify({x: x, y: y});
-
-      if (typeof self.nodesHashIndex[hash] !== 'undefined') {
-        // node already exists
-        n = self.nodes[self.nodesHashIndex[hash]];
-      } else {
-        // create a new one
-        n = new Node(x, y, null);
-        self.addNode(n);
-        created.push(n);
-      }
-      node.addNeighbor(i, n);
+  self.getRing = function(radius) {
+    if (radius > self.max) {
+      return [];
     }
 
-    return created;
+    var ring = [];
+
+    // top line
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: radius - i, y: -radius, z: 0});
+    }
+    ring.push({x: radius, y: -radius, z: 0});
+    // right up
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: radius, y: -i, z: 0});
+    }
+    ring.push({x: radius, y: 0, z: 0});
+    // right bottom
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: radius, y: 0, z: -radius + i});
+    }
+    ring.push({x: radius, y: 0, z: -radius});
+    // bottom
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: -radius + i, y: radius, z: 0});
+    }
+    // left bottom
+    ring.push({x: -radius, y: radius, z: 0});
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: -radius, y: i, z: 0});
+    }
+    // left up
+    ring.push({x: -radius, y: 0, z: 0});
+    for (var i = 1; i < radius; i++) {
+      ring.push({x: -radius, y: 0, z: radius - i});
+    }
+    ring.push({x: -radius, y: 0, z: radius});
+
+    return ring;
+  };
+
+  self.sweep = function(fn) {
+    for (var i = -self.max; i <= self.max; i++) {
+      for (var j = -self.max; j <= self.max; j++) {
+        for (var k = -self.max; k <= self.max; k++) {
+          fn(self.nodes[i][j][k], i, j, k);
+        }
+      }
+    }
   };
 
   self.render = function(ctx) {
     if (DEBUG) {
-      self.nodes.forEach(function(n) {
+      self.sweep((n) => {
         n.render(ctx);
       });
     } else {
@@ -131,18 +181,26 @@ var Grid = function(x, y, distance, limit) {
 
     for (var hash in self.nonEmptyNodesIndex) {
       index = self.nonEmptyNodesIndex[hash];
-      n = self.nodes[index];
+      n = self.nodes[index.x][index.y][index.z];
       if (n.bubble.collide(bubble)) {
-        coll.push(n);
+        coll.push({x: index.x, y: index.y, z: index.z});
       }
     }
 
     if (coll.length === 0) {
       return false;
     } else {
-      n = coll[0].findClosestNeighbor(bubble.vertex(), true);
+      index = coll[0];
+      var node = self.nodes[index.x][index.y][index.z];
+      n = node.findClosestNeighbor(bubble.vertex(), true);
       n.setBubble(bubble);
-      self.nonEmptyNodesIndex[n.hash] = self.nodesHashIndex[n.hash];
+      var nonEmpty = self.pixelToHex[n.hash];
+      self.nonEmptyNodesIndex[hexHash(nonEmpty.x, nonEmpty.y, nonEmpty.z)] = {
+        x: nonEmpty.x,
+        y: nonEmpty.y,
+        z: nonEmpty.z
+      };
+      // self.nonEmptyNodesIndex[n.hash] = self.nodesHashIndex[n.hash];
       self.propagate(n);
       self.refreshActiveColors();
       return true;
@@ -185,9 +243,10 @@ var Grid = function(x, y, distance, limit) {
   self.emptyNodes = function(hashes) {
     var n = null;
     for (var i = 0; i < hashes.length; i++) {
-      n = self.nodes[self.nodesHashIndex[hashes[i]]];
+      var index = self.pixelToHex[hashes[i]];
+      n = self.nodes[index.x][index.y][index.z];
       n.bubble = null;
-      delete self.nonEmptyNodesIndex[hashes[i]];
+      delete self.nonEmptyNodesIndex[hexHash(index.x, index.y, index.z)];
     }
   };
 
@@ -208,7 +267,8 @@ var Grid = function(x, y, distance, limit) {
     self.colors = {};
     var b = null;
     for (var key in self.nonEmptyNodesIndex) {
-      b = self.nodes[self.nonEmptyNodesIndex[key]].bubble;
+      var i = self.nonEmptyNodesIndex[key];
+      b = self.nodes[i.x][i.y][i.z].bubble;
       self.colors[b.color] = true;
     }
   };

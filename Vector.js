@@ -83,4 +83,25 @@ var Vector = function(x, y) {
   self.flip = function() {
     return self.rotate(Math.PI);
   };
+
+  self.times = function(i) {
+    return new Vector(
+      self.x * i,
+      self.y * i
+    );
+  };
+
+  self.minus = function(v) {
+    return new Vector(
+      self.x - v.x,
+      self.y - v.y
+    );
+  };
+
+  self.plus = function(v) {
+    return new Vector(
+      self.x + v.x,
+      self.y + v.y
+    );
+  };
 };
