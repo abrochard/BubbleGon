@@ -37,8 +37,10 @@ var Node = function(x, y, bubble) {
   };
 
   self.nonEmptyNeighbors = function() {
-    return self.neighbors.filter(function(n) {
-      return n.isEmpty() === false;
+    return self.neighbors.map(function(n, i) {
+      return n.isEmpty() === false ? i: null;
+    }).filter(function(n) {
+      return n !== null;
     });
   };
 
@@ -60,6 +62,6 @@ var Node = function(x, y, bubble) {
     if (index < 0) {
       return false;
     }
-    return self.neighbors[index];
+    return index;
   };
 };
