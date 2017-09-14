@@ -14,59 +14,51 @@ var Grid = function(x, y, distance, limit) {
 
   self.colors = {};
 
-  self.max = 6;
+  self.max = 12;
+  self.initialRadius = 4;
   self.q = (new Vector(1, 0)).times(self.distance);
   self.r = (new Vector(Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)))
-    .times(self.distance);
-  self.b = (new Vector(Math.cos(-Math.PI / 3), Math.sin(-Math.PI / 3)))
     .times(self.distance);
 
   self.init = function(colors, maxColors) {
     for (var i = -self.max; i <= self.max; i++) {
       self.nodes[i] = [];
       for (var j = -self.max; j <= self.max; j++) {
-        self.nodes[i][j] = [];
-        for (var k = -self.max; k <= self.max; k++) {
-          var v = self.q.times(i).plus(self.r.times(j)).plus(self.b.times(k));
-          var x = self.x + v.x;
-          var y = self.y + v.y;
-          var node = new Node(
-            x,
-            y,
-            null
-          );
-          self.nodes[i][j][k] = node;
-          self.hexToPixel[hexHash(i, j, k)] = node.hash;
-          self.pixelToHex[node.hash] = {x: i, y: j, z: k};
-        }
+        var v = self.q.times(i).plus(self.r.times(j));
+        var x = self.x + v.x;
+        var y = self.y + v.y;
+        var node = new Node(x, y, null);
+        self.nodes[i][j] = node;
+        self.hexToPixel[hexHash(i, j)] = node.hash;
+        self.pixelToHex[node.hash] = {x: i, y: j};
       }
     }
 
-    self.sweep((n, x, y, z) => {
-      self.getNeighbors(x, y, z).forEach((val, i) => {
-        n.addNeighbor(i, self.nodes[val.x][val.y][val.z]);
+    self.sweep((n, x, y) => {
+      self.getNeighbors(x, y).forEach((val, i) => {
+        n.addNeighbor(i, self.nodes[val.x][val.y]);
       });
     });
 
     return self.generate(colors, maxColors);
   };
 
-  function hexHash(x, y, z) {
-    return x + ':' + y + ':' + z;
+  function hexHash(x, y) {
+    return x + ':' + y;
   }
 
   self.generate = function(colors, maxColors) {
     var pool = getNRandom(maxColors, colors);
     var color = pool[Math.floor(Math.random() * pool.length)];
     var bubble = new Bubble(self.x, self.y, color, self.distance / 2, 0);
-    self.setBubble(0, 0, 0, bubble);
+    self.setBubble(0, 0, bubble);
 
-    for (var i = 1; i < 4; i++) {
+    for (var i = 1; i < self.initialRadius; i++) {
       var ring = self.getRing(i);
       ring.forEach((v) => {
         color = pool[Math.floor(Math.random() * pool.length)];
         bubble = new Bubble(0, 0, color, self.distance / 2, 0); // coordinates don't matter
-        self.setBubble(v.x, v.y, v.z, bubble);
+        self.setBubble(v.x, v.y, bubble);
       });
     }
 
@@ -88,24 +80,23 @@ var Grid = function(x, y, distance, limit) {
     return output;
   };
 
-  self.setBubble = function(x, y, z, bubble) {
-    self.nodes[x][y][z].setBubble(bubble);
-    self.nonEmptyNodesIndex[hexHash(x, y, z)] = {x: x, y: y, z: z};
+  self.setBubble = function(x, y, bubble) {
+    self.nodes[x][y].setBubble(bubble);
+    self.nonEmptyNodesIndex[hexHash(x, y)] = {x: x, y: y};
     self.colors[bubble.color] = true;
   };
 
-  self.getNeighbors = function(x, y, z) {
+  self.getNeighbors = function(x, y) {
     return [
-      {x: x + 1, y: y - 1, z: z},
-      {x: x + 1, y: y, z: z - 1},
-      {x: x + 1, y: y, z: z},
-      {x: x - 1, y: y + 1, z: z},
-      {x: x - 1, y: y, z: z + 1},
-      {x: x - 1, y: y, z: z}
+      {x: x + 1, y: y - 1}, // top right
+      {x: x + 1, y: y}, // middle right
+      {x: x, y: y + 1}, // bottom right
+      {x: x - 1, y: y + 1}, // bottom left
+      {x: x - 1, y: y}, // middlge left
+      {x: x, y: y - 1} // top left
     ].filter((n) => {
       return (n.x <= self.max && n.x >= -self.max) &&
-        (n.y <= self.max && n.y >= -self.max) &&
-        (n.z <= self.max && n.z >= -self.max);
+        (n.y <= self.max && n.y >= -self.max);
     });
   };
 
@@ -118,34 +109,34 @@ var Grid = function(x, y, distance, limit) {
 
     // top line
     for (var i = 1; i < radius; i++) {
-      ring.push({x: radius - i, y: -radius, z: 0});
+      ring.push({x: radius - i, y: -radius});
     }
-    ring.push({x: radius, y: -radius, z: 0});
+    ring.push({x: radius, y: -radius});
     // right up
     for (var i = 1; i < radius; i++) {
-      ring.push({x: radius, y: -i, z: 0});
+      ring.push({x: radius, y: -i});
     }
-    ring.push({x: radius, y: 0, z: 0});
+    ring.push({x: radius, y: 0});
     // right bottom
     for (var i = 1; i < radius; i++) {
-      ring.push({x: radius, y: 0, z: -radius + i});
+      ring.push({x: i, y: radius - i});
     }
-    ring.push({x: radius, y: 0, z: -radius});
+    ring.push({x: 0, y: radius});
     // bottom
     for (var i = 1; i < radius; i++) {
-      ring.push({x: -radius + i, y: radius, z: 0});
+      ring.push({x: -radius + i, y: radius});
     }
     // left bottom
-    ring.push({x: -radius, y: radius, z: 0});
+    ring.push({x: -radius, y: radius});
     for (var i = 1; i < radius; i++) {
-      ring.push({x: -radius, y: i, z: 0});
+      ring.push({x: -radius, y: i});
     }
     // left up
-    ring.push({x: -radius, y: 0, z: 0});
+    ring.push({x: -radius, y: 0});
     for (var i = 1; i < radius; i++) {
-      ring.push({x: -radius, y: 0, z: radius - i});
+      ring.push({x: -radius + i, y: -i});
     }
-    ring.push({x: -radius, y: 0, z: radius});
+    ring.push({x: 0, y: -radius});
 
     return ring;
   };
@@ -153,9 +144,9 @@ var Grid = function(x, y, distance, limit) {
   self.sweep = function(fn) {
     for (var i = -self.max; i <= self.max; i++) {
       for (var j = -self.max; j <= self.max; j++) {
-        for (var k = -self.max; k <= self.max; k++) {
-          fn(self.nodes[i][j][k], i, j, k);
-        }
+        // for (var k = -self.max; k <= self.max; k++) {
+          fn(self.nodes[i][j], i, j, 0);
+        // }
       }
     }
   };
@@ -178,9 +169,9 @@ var Grid = function(x, y, distance, limit) {
     var coll = [];
     for (var hash in self.nonEmptyNodesIndex) {
       var index = self.nonEmptyNodesIndex[hash];
-      var n = self.nodes[index.x][index.y][index.z];
+      var n = self.nodes[index.x][index.y];
       if (n.bubble.collide(bubble)) {
-        coll.push({x: index.x, y: index.y, z: index.z});
+        coll.push({x: index.x, y: index.y});
       }
     }
 
@@ -188,37 +179,30 @@ var Grid = function(x, y, distance, limit) {
       return false;
     } else {
       var index = coll[0];
-      var node = self.nodes[index.x][index.y][index.z];
+      var node = self.nodes[index.x][index.y];
       var neighbor = node.findClosestNeighbor(bubble.vertex(), true);
-      var target = self.getNeighbors(index.x, index.y, index.z)[neighbor];
-      self.setBubble(target.x, target.y, target.z, bubble);
-      // var nonEmpty = self.pixelToHex[n.hash];
-      // self.nonEmptyNodesIndex[hexHash(nonEmpty.x, nonEmpty.y, nonEmpty.z)] = {
-      //   x: nonEmpty.x,
-      //   y: nonEmpty.y,
-      //   z: nonEmpty.z
-      // };
-      // self.nonEmptyNodesIndex[n.hash] = self.nodesHashIndex[n.hash];
-      self.propagate(target.x, target.y, target.z);
+      var target = self.getNeighbors(index.x, index.y)[neighbor];
+      self.setBubble(target.x, target.y, bubble);
+      self.propagate(target.x, target.y);
       self.refreshActiveColors();
       return true;
     }
   };
 
-  self.nonEmptyNeighbors = function(x, y, z) {
-    var neighbors = self.getNeighbors(x, y, z);
+  self.nonEmptyNeighbors = function(x, y) {
+    var neighbors = self.getNeighbors(x, y);
     return neighbors.filter((n) => {
-      return self.nodes[n.x][n.y][n.z].isEmpty() === false;
+      return self.nodes[n.x][n.y].isEmpty() === false;
     });
   };
 
-  self.propagate = function(x, y, z) {
-    var node = self.nodes[x][y][z];
+  self.propagate = function(x, y) {
+    var node = self.nodes[x][y];
     var color = node.bubble.color;
     var size = 1;
     var toEmtpy = [];
-    toEmtpy.push({x: x, y: y, z: z});
-    var nodesToCheck = self.nonEmptyNeighbors(x, y, z);
+    toEmtpy.push({x: x, y: y});
+    var nodesToCheck = self.nonEmptyNeighbors(x, y);
     var visited = {};
     visited[node.hash] = true;
 
@@ -228,14 +212,14 @@ var Grid = function(x, y, distance, limit) {
 
     while (i < l) {
       toCheck = nodesToCheck[i];
-      node = self.nodes[toCheck.x][toCheck.y][toCheck.z];
+      node = self.nodes[toCheck.x][toCheck.y];
       if (typeof visited[node.hash] === 'undefined') {
         // never visited node
         visited[node.hash] = true;
         if (node.bubble.color == color) {
-          toEmtpy.push({x: toCheck.x, y: toCheck.y, z: toCheck.z});
+          toEmtpy.push({x: toCheck.x, y: toCheck.y});
           nodesToCheck = nodesToCheck.concat(
-            self.nonEmptyNeighbors(toCheck.x, toCheck.y, toCheck.z)
+            self.nonEmptyNeighbors(toCheck.x, toCheck.y)
           );
           size++;
           l = nodesToCheck.length;
@@ -251,9 +235,9 @@ var Grid = function(x, y, distance, limit) {
 
   self.emptyNodes = function(coordinates) {
     coordinates.forEach(function(index) {
-      var n = self.nodes[index.x][index.y][index.z];
+      var n = self.nodes[index.x][index.y];
       n.bubble = null;
-      delete self.nonEmptyNodesIndex[hexHash(index.x, index.y, index.z)];
+      delete self.nonEmptyNodesIndex[hexHash(index.x, index.y)];
     });
   };
 
@@ -275,7 +259,7 @@ var Grid = function(x, y, distance, limit) {
     var b = null;
     for (var key in self.nonEmptyNodesIndex) {
       var i = self.nonEmptyNodesIndex[key];
-      b = self.nodes[i.x][i.y][i.z].bubble;
+      b = self.nodes[i.x][i.y].bubble;
       self.colors[b.color] = true;
     }
   };
