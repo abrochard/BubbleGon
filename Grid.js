@@ -230,6 +230,9 @@ var Grid = function(x, y, distance, limit) {
 
     if (size >= 3) {
       self.emptyNodes(toEmtpy);
+
+      var distached = self.findDistachedNodes();
+      self.emptyNodes(distached);
     }
   };
 
@@ -238,6 +241,42 @@ var Grid = function(x, y, distance, limit) {
       var n = self.nodes[index.x][index.y];
       n.bubble = null;
       delete self.nonEmptyNodesIndex[hexHash(index.x, index.y)];
+    });
+  };
+
+  self.findDistachedNodes = function() {
+    var center = self.nodes[0][0];
+    if (center.isEmpty()) {
+      // Game over, clean all
+      return Object.keys(self.nonEmptyNodesIndex).map((key) => {
+        return self.nonEmptyNodesIndex[key];
+      });
+    }
+
+    var visited = {};
+    visited[hexHash(0, 0)] = true;
+    var i = 0;
+    var nodesToCheck = self.nonEmptyNeighbors(0, 0);
+    var l = nodesToCheck.length;
+
+    while (i < l) {
+      var n = nodesToCheck[i];
+      var hash = hexHash(n.x, n.y);
+      if (typeof visited[hash] === 'undefined') {
+        // never visited node
+        visited[hash] = true;
+        nodesToCheck = nodesToCheck.concat(
+          self.nonEmptyNeighbors(n.x, n.y)
+        );
+        l = nodesToCheck.length;
+      }
+      i++;
+    }
+
+    return Object.keys(self.nonEmptyNodesIndex).filter((e) => {
+      return Object.keys(visited).indexOf(e) < 0;
+    }).map((h) => {
+      return self.nonEmptyNodesIndex[h];
     });
   };
 
