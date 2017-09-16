@@ -21,7 +21,7 @@ var COLORS = [
 ];
 var MAX_COLORS = 4;
 
-var DEBUG = false;
+var DEBUG = true;
 
 // GLOBAL VAR
 var ctx = null;
@@ -246,7 +246,7 @@ function detectGridCollision() {
   var snap = grid.collide(selected);
 
   if (snap) {
-    grid.grow();
+    // grid.grow();
     selected.stop();
     selected = null;
     input = true;

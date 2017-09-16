@@ -1,42 +1,52 @@
 'use strict';
-var Grid = function(x, y, distance, limit) {
+var Grid = function(x, y, distance) {
   var self = this;
 
   self.x = x;
   self.y = y;
   self.sides = 6;
   self.distance = distance;
-  self.limit = limit;
-  self.nodes = [];
+  self.nodes = {};
+  self.rings = [];
   self.hexToPixel = {};
   self.pixelToHex = {};
   self.nonEmptyNodesIndex = {};
 
   self.colors = {};
 
-  self.max = 12;
+  self.max = 11;
   self.initialRadius = 4;
+
   self.q = (new Vector(1, 0)).times(self.distance);
   self.r = (new Vector(Math.cos(Math.PI / 3), Math.sin(Math.PI / 3)))
     .times(self.distance);
 
   self.init = function(colors, maxColors) {
-    for (var i = -self.max; i <= self.max; i++) {
-      self.nodes[i] = [];
-      for (var j = -self.max; j <= self.max; j++) {
+    self.nodes[0] = {};
+    self.nodes[0][0] = new Node(0, 0, self.x, self.y, null);
+    self.rings[0] = [{x: 0, y: 0}];
+
+    for (var r = 1; r <= self.max; r++) {
+      var ring = self.getRing(r);
+      ring.forEach((n) => {
+        var i = n.x;
+        var j = n.y;
         var v = self.q.times(i).plus(self.r.times(j));
         var x = self.x + v.x;
         var y = self.y + v.y;
-        var node = new Node(x, y, null);
+        var node = new Node(i, j, x, y, null);
+
+        if (typeof self.nodes[i] === 'undefined') {
+          self.nodes[i] = {};
+        }
         self.nodes[i][j] = node;
-        self.hexToPixel[hexHash(i, j)] = node.hash;
-        self.pixelToHex[node.hash] = {x: i, y: j};
-      }
+      });
+      self.rings[r] = ring;
     }
 
     self.sweep((n, x, y) => {
       self.getNeighbors(x, y).forEach((val, i) => {
-        n.addNeighbor(i, self.nodes[val.x][val.y]);
+        n.addNeighbor(self.nodes[val.x][val.y]);
       });
     });
 
@@ -86,6 +96,18 @@ var Grid = function(x, y, distance, limit) {
     self.colors[bubble.color] = true;
   };
 
+  self.nodeExists = function(n) {
+    if (typeof self.nodes[n.x] === 'undefined') {
+      return false;
+    }
+
+    if (typeof self.nodes[n.x][n.y] === 'undefined') {
+      return false;
+    }
+
+    return true;
+  };
+
   self.getNeighbors = function(x, y) {
     return [
       {x: x + 1, y: y - 1}, // top right
@@ -94,10 +116,7 @@ var Grid = function(x, y, distance, limit) {
       {x: x - 1, y: y + 1}, // bottom left
       {x: x - 1, y: y}, // middlge left
       {x: x, y: y - 1} // top left
-    ].filter((n) => {
-      return (n.x <= self.max && n.x >= -self.max) &&
-        (n.y <= self.max && n.y >= -self.max);
-    });
+    ].filter(self.nodeExists);
   };
 
   self.getRing = function(radius) {
@@ -142,11 +161,9 @@ var Grid = function(x, y, distance, limit) {
   };
 
   self.sweep = function(fn) {
-    for (var i = -self.max; i <= self.max; i++) {
-      for (var j = -self.max; j <= self.max; j++) {
-        // for (var k = -self.max; k <= self.max; k++) {
-          fn(self.nodes[i][j], i, j, 0);
-        // }
+    for (var i in self.nodes) {
+      for (var j in self.nodes[i]) {
+        fn(self.nodes[i][j], parseInt(i), parseInt(j));
       }
     }
   };
@@ -180,8 +197,7 @@ var Grid = function(x, y, distance, limit) {
     } else {
       var index = coll[0];
       var node = self.nodes[index.x][index.y];
-      var neighbor = node.findClosestNeighbor(bubble.vertex(), true);
-      var target = self.getNeighbors(index.x, index.y)[neighbor];
+      var target = node.findClosestNeighbor(bubble.vertex(), true);
       self.setBubble(target.x, target.y, bubble);
       self.propagate(target.x, target.y);
       self.refreshActiveColors();

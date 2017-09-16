@@ -1,7 +1,9 @@
 'use strict';
-var Node = function(x, y, bubble) {
+var Node = function(i, j, x, y, bubble) {
   var self = this;
 
+  self.i = i;
+  self.j = j;
   self.x = x;
   self.y = y;
   self.bubble = bubble;
@@ -18,8 +20,8 @@ var Node = function(x, y, bubble) {
     return new Vector(self.x, self.y);
   };
 
-  self.addNeighbor = function(index, node) {
-    self.neighbors[index] = node;
+  self.addNeighbor = function(node) {
+    self.neighbors.push(node);
   };
 
   self.render = function(ctx) {
@@ -46,22 +48,22 @@ var Node = function(x, y, bubble) {
 
   self.findClosestNeighbor = function(v, empty) {
     var min = -1;
-    var index = -1;
+    var node = null;
 
     for (var i = 0; i < self.neighbors.length; i++) {
       var n = self.neighbors[i];
       if (n.isEmpty() == empty) {
         var d = n.vertex().distanceTo(v);
         if (min < 0 || d < min) {
-          index = i;
+          node = n;
           min = d;
         }
       }
     }
 
-    if (index < 0) {
+    if (node == null) {
       return false;
     }
-    return index;
+    return {x: node.i, y: node.j};
   };
 };
